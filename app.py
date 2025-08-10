@@ -1,8 +1,6 @@
 import streamlit as st
 import pandas as pd
-
 import altair as alt
-
 from pathlib import Path
 import re
 
@@ -16,6 +14,22 @@ def combine_names(df, col_first, col_last, col_new="Name"):
     df[col_new] = df.apply(lambda row: f"{row[col_first]} {row[col_last]}", axis=1)
     return df
 
+def get_build(df):
+    df = df.copy()
+    df["team_pick_number"] = ((df['Pick Number'] - 1) // 12) + 1
+    df_builds = df.pivot(
+        index="Draft", columns="team_pick_number", values="Position"
+        ).apply(
+            lambda row: row.value_counts(), axis=1
+        )
+    ser_summary = (
+        df_builds["QB"].astype(str) + "-" +
+        df_builds["RB"].astype(str) + "-" +
+        df_builds["WR"].astype(str) + "-" +
+        df_builds["TE"].astype(str)
+    )
+    return ser_summary.value_counts()
+
 def process_exposures():
     file = st.session_state['uploaded_file']
     if file is not None:
@@ -28,6 +42,7 @@ def process_exposures():
         # make percentile
         df_exp["exp"] *= 100
         st.session_state['df_exp'] = df_exp
+        st.session_state['build'] = get_build(df_upload)
 
 p = Path("data")
 
@@ -159,3 +174,10 @@ if 'df_exp' in st.session_state:
     )
 
     st.altair_chart(chart, use_container_width=True)
+
+    ser_builds = st.session_state['build']
+
+    st.write("Build frequencies:")
+
+    build_string = "  \n".join([f"{count} times: {build}" for build, count in ser_builds.items()])
+    st.markdown(build_string)
